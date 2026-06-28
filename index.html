@@ -463,9 +463,8 @@ function calcSwapTargets(selA, reqDate){
         if(cands.length>0){
           const dk=`${cur.getFullYear()}-${cur.getMonth()}-${cur.getDate()}`;
           possible[dk]={cands,shiftType:sA,newA};
-          [1,2,3].filter((_,i)=>s[i]===sA).forEach(jo=>{
-            blinkSet.add(`${cur.getFullYear()}-${cur.getMonth()}-${cur.getDate()}-${jo}-${sA}`);
-          });
+          // 점멸: 요청자(selA.jo)가 근무하는 해당 날짜의 배지만 점멸
+          blinkSet.add(`${cur.getFullYear()}-${cur.getMonth()}-${cur.getDate()}-${selA.jo}-${sA}`);
         }
       }
     }
