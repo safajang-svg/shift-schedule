@@ -416,10 +416,16 @@ function getDispName(jo, fullName){
   return fullName.charAt(0);
 }
 
-// 교대모드에서 점멸 배지 클릭 → 해당 날짜의 교대 가능 상대 팝업
+// 교대모드에서 점멸 배지 클릭 → 같은 조면 일반 메뉴, 다른 조면 교대 상대 팝업
 function onBlinkBadgeClick(el, ev){
   ev.stopPropagation();
   const [y,m,d]=el.dataset.date.split('-').map(Number);
+  const clickedJo=parseInt(el.dataset.jo);
+  // 같은 조 배지 클릭 → 교대 불가 안내
+  if(clickedJo===swapMode.selA.jo){
+    alert(`같은 조(${clickedJo}조)끼리는 교대 요청이 불가합니다.\n다른 조의 점멸 배지를 클릭하세요.`);
+    return;
+  }
   const dk=`${y}-${m}-${d}`;
   openDatePopup(dk);
 }
@@ -539,8 +545,12 @@ function showMenu(){
   setResult(null); setPOk(false);
   const v0=vacData[vKey(dt,jo,0)], v1=vacData[vKey(dt,jo,1)];
   const hasVac=v0||v1;
+
+  // 교대 요청: 같은 조끼리 불가 → 요청 가능한 다른 조가 있을 때만 버튼 표시
+  // (배지 클릭한 jo가 요청 대상 조 → 다른 조에게 요청)
+  // 항상 다른 조가 존재하므로 버튼은 항상 표시, 단 클릭 후 같은 조 선택 불가 처리는 calcSwapTargets에서 이미 됨
   document.getElementById('pMembers').innerHTML=`
-    <button class="pmbtn" onclick="showSwapStep1()">🔄 교대 요청</button>
+    <button class="pmbtn" onclick="showSwapStep1()">🔄 교대 요청 (다른 조에게)</button>
     <button class="pmbtn vbtn" onclick="showVacStep()">🏖️ 휴가 입력 / 취소</button>
     ${hasVac?`<button class="pmbtn dbtn" onclick="showVacDelStep()">🗑️ 휴가 취소</button>`:''}
   `;
@@ -553,7 +563,7 @@ function showSwapStep1(){
   const dt=pState.date, jo=pState.jo, type=pState.type;
   const hrs=HOURS[type];
   document.getElementById('pTitle').textContent=`${jo}조 교대 요청`;
-  document.getElementById('pStep').textContent='① 쉬고 싶은 조원 선택 → 달력에 가능 날짜 표시';
+  document.getElementById('pStep').textContent=`① ${jo}조 중 쉬고 싶은 조원 선택 → 2·3조 교대 가능 날짜 점멸`;
   setResult(null); setPOk(false);
   document.getElementById('pMembers').innerHTML=FULL_NAMES[jo].map((name,mi)=>{
     const wh=weekHours(jo,mi,dt), newWh=wh-hrs;
