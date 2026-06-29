@@ -446,7 +446,7 @@ function cancelSwap(){
 // 조건:
 //  1) 요청일 이후 날짜만
 //  2) 같은 조 제외
-//  3) 상대방이 비번인 날
+//  3) 상대방도 같은 근무 유형(주간↔주간, 야간↔야간)인 날
 //  4) 주간교대: 상대방 주간 누적 ≤44h / 야간교대: ≤40h
 //  5) 교대 후 상대방 ≤52h
 //  6) 요청자도 교대 후 ≥0h
@@ -454,7 +454,6 @@ function calcSwapTargets(selA, reqDate){
   const possible={};
   const blinkSet=new Set();
 
-  // 요청일 다음날부터 1년치 탐색
   const reqNext=new Date(reqDate); reqNext.setDate(reqNext.getDate()+1); reqNext.setHours(0,0,0,0);
   const rangeEnd=new Date(reqDate); rangeEnd.setFullYear(rangeEnd.getFullYear()+1);
 
@@ -470,8 +469,8 @@ function calcSwapTargets(selA, reqDate){
         const limit=sA==='주'?44:40;
         const cands=[];
         [1,2,3].forEach(jo=>{
-          if(jo===selA.jo) return;     // 같은 조 제외
-          if(s[jo-1]!=='비') return;   // 비번인 조만
+          if(jo===selA.jo) return;        // 같은 조 제외
+          if(s[jo-1]!==sA) return;        // 같은 근무 유형(주↔주, 야↔야)만
           [0,1].forEach(mi=>{
             const whB=weekHours(jo,mi,cur);
             const newB=whB+hrs;
@@ -483,7 +482,6 @@ function calcSwapTargets(selA, reqDate){
         if(cands.length>0){
           const dk=`${cur.getFullYear()}-${cur.getMonth()}-${cur.getDate()}`;
           possible[dk]={cands,shiftType:sA,newA};
-          // 요청자 배지 점멸
           blinkSet.add(`${cur.getFullYear()}-${cur.getMonth()}-${cur.getDate()}-${selA.jo}-${sA}`);
         }
       }
@@ -600,7 +598,7 @@ function openDatePopup(dk){
   document.getElementById('pMembers').innerHTML=info.cands.map(({jo,mi,name,curH,newH})=>`
     <button class="pmbtn" onclick="selectSwapB(${jo},${mi},${curH},${newH},event)">
       <span class="pdot pd${jo}"></span>
-      <span>${name} <small style="color:#2e7d32;">(비번)</small></span>
+      <span>${name} <small style="color:#2e7d32;">(${info.shiftType}간)</small></span>
       <span style="margin-left:auto;font-size:11px;">
         <span style="color:#888;">${curH}h</span>
         <span style="color:#2e7d32;font-weight:700;"> → ${newH}h ✓</span>
