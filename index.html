@@ -331,13 +331,19 @@ function renderCal(){
         const sk=sKey(dt,jo,type), sw=swapData[sk];
         const v0=vacData[vKey(dt,jo,0)], v1=vacData[vKey(dt,jo,1)];
         const blinkK=`${curY}-${curM}-${d}-${jo}-${type}`;
-        const blinkCls=swapMode.active&&swapMode.blinkSet&&swapMode.blinkSet.has(blinkK)?' blink-avail':'';
-        html+=`<span class="badge-sm b${jo}${blinkCls}" data-date="${curY}-${curM}-${d}" data-jo="${jo}" data-type="${type}" onclick="onBadgeClick(this)">${jo}조</span>`;
+        const isBlinking=swapMode.active&&swapMode.blinkSet&&swapMode.blinkSet.has(blinkK);
+        const blinkCls=isBlinking?' blink-avail':'';
+        const clickFn=isBlinking
+          ? `onBlinkBadgeClick(this,event)`
+          : `onBadgeClick(this)`;
+        html+=`<span class="badge-sm b${jo}${blinkCls}" data-date="${curY}-${curM}-${d}" data-jo="${jo}" data-type="${type}" onclick="${clickFn}">${jo}조</span>`;
         if(v0) html+=`<span class="vac-label">${DISP_NAMES[jo][0]}휴</span>`;
         if(v1) html+=`<span class="vac-label">${DISP_NAMES[jo][1]}휴</span>`;
         if(sw){
           const a=sw.hoursA<=52,b=sw.hoursB<=52;
-          html+=`<span class="swap-label">${sw.nameA}→${sw.nameB}<br>`
+          const dispA=getDispName(sw.joA,sw.nameA);
+          const dispB=getDispName(sw.joB,sw.nameB);
+          html+=`<span class="swap-label">${dispA}→${dispB}<br>`
             +`<span class="${a?'s-ok':'s-ov'}">${sw.hoursA}h${a?'✓':'⚠'}</span> `
             +`<span class="${b?'s-ok':'s-ov'}">${sw.hoursB}h${b?'✓':'⚠'}</span></span>`;
         }
@@ -401,6 +407,23 @@ function renderSummary(){
   wrap.innerHTML=html;
 }
 
+// 약칭: 성만 표시, 3조 판수→판, 진한→한
+function getDispName(jo, fullName){
+  if(jo===3){
+    if(fullName==='김판수') return '판';
+    if(fullName==='김진한') return '한';
+  }
+  return fullName.charAt(0);
+}
+
+// 교대모드에서 점멸 배지 클릭 → 해당 날짜의 교대 가능 상대 팝업
+function onBlinkBadgeClick(el, ev){
+  ev.stopPropagation();
+  const [y,m,d]=el.dataset.date.split('-').map(Number);
+  const dk=`${y}-${m}-${d}`;
+  openDatePopup(dk);
+}
+
 // ── 교대 모드 ────────────────────────────────────────
 let swapMode={active:false,selA:null,possible:{},blinkSet:null};
 
@@ -422,24 +445,15 @@ function cancelSwap(){
 //  5) 교대 후 상대방 ≤52h
 //  6) 요청자도 교대 후 ≥0h
 function calcSwapTargets(selA, reqDate){
-  const dim=new Date(curY,curM+1,0).getDate();
-  const fd=new Date(curY,curM,1).getDay(), so=fd===0?6:fd-1;
-  const rs=new Date(curY,curM,1-so);
-  const lastD=new Date(curY,curM,dim);
-  const lastDow=lastD.getDay();
-  const re=new Date(curY,curM,dim+(lastDow===0?0:7-lastDow));
   const possible={};
   const blinkSet=new Set();
 
-  // 요청일 다음날부터
+  // 요청일 다음날부터 1년치 탐색
   const reqNext=new Date(reqDate); reqNext.setDate(reqNext.getDate()+1); reqNext.setHours(0,0,0,0);
+  const rangeEnd=new Date(reqDate); rangeEnd.setFullYear(rangeEnd.getFullYear()+1);
 
-  let cur=new Date(rs);
-  while(cur<=re){
-    const cDate=new Date(cur); cDate.setHours(0,0,0,0);
-    // 요청일 이후만
-    if(cDate < reqNext){ cur.setDate(cur.getDate()+1); continue; }
-
+  let cur=new Date(reqNext);
+  while(cur<=rangeEnd){
     const s=getShifts(cur);
     const sA=s[selA.jo-1];
     if(sA==='주'||sA==='야'){
@@ -450,20 +464,20 @@ function calcSwapTargets(selA, reqDate){
         const limit=sA==='주'?44:40;
         const cands=[];
         [1,2,3].forEach(jo=>{
-          if(jo===selA.jo) return;        // 같은 조 제외
-          if(s[jo-1]!=='비') return;      // 비번인 조만
+          if(jo===selA.jo) return;     // 같은 조 제외
+          if(s[jo-1]!=='비') return;   // 비번인 조만
           [0,1].forEach(mi=>{
             const whB=weekHours(jo,mi,cur);
             const newB=whB+hrs;
             if(whB<=limit && newB<=52){
-              cands.push({jo,mi,name:FULL_NAMES[jo][mi],curH:whB,newH:newB,type:sA});
+              cands.push({jo,mi,name:FULL_NAMES[jo][mi],dispName:DISP_NAMES[jo][mi],curH:whB,newH:newB,type:sA});
             }
           });
         });
         if(cands.length>0){
           const dk=`${cur.getFullYear()}-${cur.getMonth()}-${cur.getDate()}`;
           possible[dk]={cands,shiftType:sA,newA};
-          // 점멸: 요청자(selA.jo)가 근무하는 해당 날짜의 배지만 점멸
+          // 요청자 배지 점멸
           blinkSet.add(`${cur.getFullYear()}-${cur.getMonth()}-${cur.getDate()}-${selA.jo}-${sA}`);
         }
       }
@@ -606,7 +620,7 @@ function doSwap(){
   const dt=pState.date;
   const whA=weekHours(sA.jo,sA.mi,dt)-hrs;
   const sk=sKey(dt,sA.jo,pState.type);
-  swapData[sk]={nameA:sA.name,nameB:sB.name,hoursA:whA,hoursB:sB.newH};
+  swapData[sk]={nameA:sA.name,nameB:sB.name,hoursA:whA,hoursB:sB.newH,joA:sA.jo,joB:sB.jo};
   cancelSwap(); hideOverlay(); render();
 }
 
