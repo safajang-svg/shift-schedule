@@ -151,4 +151,171 @@ td.swap-dim{opacity:.3;pointer-events:none;}
 // ── 상수 ─────────────────────────────────────────────
 const BASE = new Date(2026,6,1); 
 const CYCLE = ['야','비','주'];
+const BASE_IDX = [0,1,2];
+const FULL_NAMES = {1:['김영환','조상철'],2:['장영민','최서현'],3:['김판수','김진한']};
+const DISP_NAMES = {1:['영환','상철'],2:['영민','서현'],3:['판','한']};
+const HOURS = {주:8,야:12,비:0};
+const HOLIDAYS = {
+  '2026-01-01':'신정','2026-02-17':'설연휴','2026-02-18':'설날','2026-02-19':'설연휴',
+  '2026-03-01':'삼일절','2026-05-05':'어린이날','2026-05-24':'부처님오신날',
+  '2026-06-06':'현충일','2026-07-17':'제헌절','2026-08-15':'광복절',
+  '2026-09-24':'추석연휴','2026-09-25':'추석','2026-09-26':'추석연휴',
+  '2026-10-03':'개천절','2026-10-09':'한글날','2026-12-25':'크리스마스',
+};
+
+let vacData={}, swapData={};
+
+function loadAll(){
+  try{ vacData  = JSON.parse(localStorage.getItem('gv')||'{}'); }catch(e){vacData={};}
+  try{ swapData = JSON.parse(localStorage.getItem('gs')||'{}'); }catch(e){swapData={};}
+}
+function doSave(){
+  try{
+    localStorage.setItem('gv', JSON.stringify(vacData));
+    localStorage.setItem('gs', JSON.stringify(swapData));
+    const msg=document.getElementById('saveMsg');
+    msg.classList.add('show');
+    setTimeout(()=>msg.classList.remove('show'),2500);
+  }catch(e){ alert('저장 실패: '+e.message); }
+}
+
+function getShifts(date){
+  const diff=Math.round((new Date(date.getFullYear(),date.getMonth(),date.getDate())-BASE)/86400000);
+  return [0,1,2].map(i=>CYCLE[((BASE_IDX[i]+diff)%3+3)%3]);
+}
+function vKey(date,jo,mi){return `${date.getFullYear()}_${date.getMonth()}_${date.getDate()}_${jo}_${mi}`;}
+function sKey(date,jo,type){return `${date.getFullYear()}_${date.getMonth()}_${date.getDate()}_${jo}_${type}`;}
+
+function weekHours(jo,mi,refDate){
+  const dow=refDate.getDay(), off=dow===0?6:dow-1;
+  const mon=new Date(refDate); mon.setDate(mon.getDate()-off);
+  let tot=0;
+  for(let i=0;i<7;i++){
+    const d=new Date(mon); d.setDate(d.getDate()+i);
+    const s=getShifts(d);
+    tot += vacData[vKey(d,jo,mi)] ? 0 : (HOURS[s[jo-1]]||0);
+  }
+  return tot;
+}
+
+function isPast(date){
+  const today=new Date(); today.setHours(0,0,0,0);
+  const d=new Date(date); d.setHours(0,0,0,0);
+  return d < today;
+}
+
+let curY, curM;
+
+function init(){
+  loadAll();
+  const n=new Date(); curY=n.getFullYear(); curM=n.getMonth();
+  fillYearSel(); render();
+}
+function fillYearSel(){
+  const s=document.getElementById('yearSel'); s.innerHTML='';
+  for(let y=2024;y<=2030;y++){
+    const o=document.createElement('option');
+    o.value=y; o.textContent=y+'년'; if(y===curY)o.selected=true;
+    s.appendChild(o);
+  }
+}
+function render(){
+  document.getElementById('mTitle').textContent=`${curM+1}월 근무표`;
+  document.getElementById('yearSel').value=curY;
+  renderCal(); renderSummary();
+  if(swapMode.active) setTimeout(applyHighlight,40);
+}
+
+function mkTot(){ const t={}; [1,2,3].forEach(jo=>{t[jo]={0:0,1:0};}); return t; }
+
+function addHoursToTot(t,date){
+  const s=getShifts(date);
+  [1,2,3].forEach((jo,i)=>[0,1].forEach(mi=>{
+    t[jo][mi] += vacData[vKey(date,jo,mi)] ? 0 : (HOURS[s[i]]||0);
+  }));
+}
+
+function wkTotRow(t,dim=false){
+  let h=`</tr><tr class="wk-row"><td colspan="7" style="${dim?'opacity:.55;':''}">`;
+  [1,2,3].forEach(jo=>[0,1].forEach(mi=>{
+    const v=t[jo][mi], ov=v>52;
+    h+=`<span class="wkjo b${jo}" style="font-size:9px;padding:1px 3px;margin-right:2px;">${FULL_NAMES[jo][mi].charAt(0)}</span>`
+      +`<span class="${ov?'wk-ov':''}" style="font-size:10px;margin-right:5px;">${v}h${ov?'⚠':''}</span>`;
+  }));
+  return h+`</td>`;
+}
+
+function dimCell(date,d){
+  const s=getShifts(date);
+  let h=`<td class="dim-cell"><div class="date-num" style="color:#bbb;">${d}</div>`;
+  ['주','야'].forEach(type=>{
+    const jl=[1,2,3].filter((_,i)=>s[i]===type);
+    if(jl.length){ h+=`<div class="shift-row">`; jl.forEach(jo=>{h+=`<span class="badge-sm b${jo}" style="opacity:.28;">${jo}조</span>`;}); h+=`</div>`; }
+  });
+  return h+`</td>`;
+}
+
+function renderCal(){
+  const wrap=document.getElementById('calWrap');
+  const dim=new Date(curY,curM+1,0).getDate();
+  const fd=new Date(curY,curM,1).getDay();
+  const so=fd===0?6:fd-1;
+
+  const wkTot={};
+  for(let d=1; d<=dim; d++){
+    const dt=new Date(curY,curM,d);
+    if(dt.getDay()!==0) continue;
+    const t=mkTot();
+    for(let bk=6; bk>=0; bk--) addHoursToTot(t,new Date(curY,curM,d-bk));
+    wkTot[d]=t;
+  }
+
+  const lastDt=new Date(curY,curM,dim);
+  const lastDow=lastDt.getDay();
+  let nextDays=[],lastWkTot=null;
+  if(lastDow!==0){
+    const t=mkTot();
+    for(let bk=lastDow-1; bk>=0; bk--) addHoursToTot(t,new Date(curY,curM,dim-bk));
+    for(let nd=1; nd<=7-lastDow; nd++){
+      const ndt=new Date(curY,curM+1,nd);
+      addHoursToTot(t,ndt);
+      nextDays.push({date:ndt,d:nd});
+    }
+    lastWkTot=t;
+  }
+
+  let html=`<table><thead class="day-header"><tr>`;
+  ['월','화','수','목','금','토','일'].forEach(n=>html+=`<th>${n}</th>`);
+  html+=`</tr></thead><tbody><tr>`;
+  let col=0;
+
+  const prevDim=new Date(curY,curM,0).getDate();
+  for(let i=0; i<so; i++){
+    const pd=prevDim-so+1+i;
+    html+=dimCell(new Date(curY,curM-1,pd),pd); col++;
+  }
+
+  for(let d=1; d<=dim; d++){
+    if(col===7){html+=`</tr><tr>`;col=0;}
+    const dt=new Date(curY,curM,d);
+    const dow=dt.getDay();
+    const isSun=dow===0,isSat=dow===6;
+    const hk=`${curY}-${String(curM+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const holi=HOLIDAYS[hk];
+    const shifts=getShifts(dt);
+    let nc=isSun?'sun':isSat?'sat':''; if(holi)nc='hol';
+    const past=isPast(dt);
+
+    html+=`<td data-cd="${curY}-${curM}-${d}"${past?' style="background:#fafafa;"':''}>`;
+    html+=`<div class="date-num ${nc}">${d}${past?'<span style="font-size:8px;color:#ccc;margin-left:2px;"></span>':''}${holi?`<span class="holi-label">${holi}</span>`:''}</div>`;
+
+    ['주','야'].forEach(type=>{
+      const jl=[1,2,3].filter((_,i)=>shifts[i]===type);
+      if(!jl.length) return;
+      html+=`<div class="shift-row">`;
+      jl.forEach(jo=>{
+        const sk=sKey(dt,jo,type), sw=swapData[sk];
+        const v0=vacData[vKey(dt,jo,0)], v1=vacData[vKey(dt,jo,1)];
+        const blinkK=`${curY}-${curM}-${d}-${jo}-${type}`;
+        const isBlinking=swapMode.active&&
 
