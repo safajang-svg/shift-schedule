@@ -127,5 +127,28 @@ td.swap-dim{opacity:.3;pointer-events:none;}
   <div class="cal-wrap" id="calWrap"></div>
   <div class="wk-summary" id="wkSummary"></div>
 
-  <div class="save-bar
+  <div class="save-bar">
+    <button class="save-btn" onclick="doSave()">💾 저장</button>
+    <span class="save-msg" id="saveMsg">✅ 저장되었습니다</span>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="pbox">
+    <span class="pclose" id="pClose">✕</span>
+    <div class="ptitle"  id="pTitle"></div>
+    <div class="pstep"   id="pStep"></div>
+    <div class="pmembers" id="pMembers"></div>
+    <div class="presult" id="pResult" style="display:none;"></div>
+    <div class="pbtns">
+      <button class="pbtn pbtn-cancel" id="pCancel">취소</button>
+      <button class="pbtn pbtn-ok" id="pOk" disabled style="display:none;">확인</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── 상수 ─────────────────────────────────────────────
+const BASE = new Date(2026,6,1); 
+const CYCLE = ['야','비','주'];
 
