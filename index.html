@@ -133,7 +133,6 @@ td.swap-dim{opacity:.3;pointer-events:none;}
   </div>
 </div>
 
-<!-- 팝업 -->
 <div class="overlay" id="overlay">
   <div class="pbox">
     <span class="pclose" id="pClose">✕</span>
@@ -150,12 +149,12 @@ td.swap-dim{opacity:.3;pointer-events:none;}
 
 <script>
 // ── 상수 ─────────────────────────────────────────────
-const BASE = new Date(2026,6,1); // 2026-07-01 기준: 1조=야, 2조=비, 3조=주
-const CYCLE = ['야','비','주'];
-const BASE_IDX = [0,1,2];
-const FULL_NAMES = {1:['김영환','조상철'],2:['장영민','최서현'],3:['김판수','김진한']};
-const DISP_NAMES = {1:['영환','상철'],2:['영민','서현'],3:['판','한']};
-const HOURS = {주:8,야:12,비:0};
+const BASE = new Date(2026,6,1); 
+const CYCLE = ['야','비','주']; 
+const BASE_IDX = [0,1,2]; 
+const FULL_NAMES = {1:['김영환','조상철'],2:['장영민','최서현'],3:['김판수','김진한']}; 
+const DISP_NAMES = {1:['영환','상철'],2:['영민','서현'],3:['판','한']}; 
+const HOURS = {주:8,야:12,비:0}; 
 const HOLIDAYS = {
   '2026-01-01':'신정','2026-02-17':'설연휴','2026-02-18':'설날','2026-02-19':'설연휴',
   '2026-03-01':'삼일절','2026-05-05':'어린이날','2026-05-24':'부처님오신날',
@@ -164,408 +163,390 @@ const HOLIDAYS = {
   '2026-10-03':'개천절','2026-10-09':'한글날','2026-12-25':'크리스마스',
 };
 
-// ── 저장소 ───────────────────────────────────────────
-// localStorage: 'gv'=휴가, 'gs'=교대 → 저장 버튼 눌러야 반영
-// 작업 중 메모리: vacData, swapData
-// 저장 전까지는 sessionStorage에 임시 보관 (새로고침 시 유지)
-let vacData={}, swapData={};
+let vacData={}, swapData={}; 
 
 function loadAll(){
-  try{ vacData  = JSON.parse(localStorage.getItem('gv')||'{}'); }catch(e){vacData={};}
-  try{ swapData = JSON.parse(localStorage.getItem('gs')||'{}'); }catch(e){swapData={};}
+  try{ vacData  = JSON.parse(localStorage.getItem('gv')||'{}'); }catch(e){vacData={};} 
+  try{ swapData = JSON.parse(localStorage.getItem('gs')||'{}'); }catch(e){swapData={};} 
 }
 function doSave(){
   try{
-    localStorage.setItem('gv', JSON.stringify(vacData));
-    localStorage.setItem('gs', JSON.stringify(swapData));
-    const msg=document.getElementById('saveMsg');
-    msg.classList.add('show');
-    setTimeout(()=>msg.classList.remove('show'),2500);
+    localStorage.setItem('gv', JSON.stringify(vacData)); 
+    localStorage.setItem('gs', JSON.stringify(swapData)); 
+    const msg=document.getElementById('saveMsg'); 
+    msg.classList.add('show'); 
+    setTimeout(()=>msg.classList.remove('show'),2500); 
   }catch(e){ alert('저장 실패: '+e.message); }
 }
 
-// ── 근무 계산 ────────────────────────────────────────
 function getShifts(date){
-  const diff=Math.round((new Date(date.getFullYear(),date.getMonth(),date.getDate())-BASE)/86400000);
-  return [0,1,2].map(i=>CYCLE[((BASE_IDX[i]+diff)%3+3)%3]);
+  const diff=Math.round((new Date(date.getFullYear(),date.getMonth(),date.getDate())-BASE)/86400000); 
+  return [0,1,2].map(i=>CYCLE[((BASE_IDX[i]+diff)%3+3)%3]); 
 }
-function vKey(date,jo,mi){return `${date.getFullYear()}_${date.getMonth()}_${date.getDate()}_${jo}_${mi}`;}
-function sKey(date,jo,type){return `${date.getFullYear()}_${date.getMonth()}_${date.getDate()}_${jo}_${type}`;}
+function vKey(date,jo,mi){return `${date.getFullYear()}_${date.getMonth()}_${date.getDate()}_${jo}_${mi}`;} 
+function sKey(date,jo,type){return `${date.getFullYear()}_${date.getMonth()}_${date.getDate()}_${jo}_${type}`;} 
 
-// 주(월~일) 총 근무시간 (휴가 차감)
 function weekHours(jo,mi,refDate){
-  const dow=refDate.getDay(), off=dow===0?6:dow-1;
-  const mon=new Date(refDate); mon.setDate(mon.getDate()-off);
-  let tot=0;
+  const dow=refDate.getDay(), off=dow===0?6:dow-1; 
+  const mon=new Date(refDate); mon.setDate(mon.getDate()-off); 
+  let tot=0; 
   for(let i=0;i<7;i++){
-    const d=new Date(mon); d.setDate(d.getDate()+i);
-    const s=getShifts(d);
-    tot += vacData[vKey(d,jo,mi)] ? 0 : (HOURS[s[jo-1]]||0);
+    const d=new Date(mon); d.setDate(d.getDate()+i); 
+    const s=getShifts(d); 
+    tot += vacData[vKey(d,jo,mi)] ? 0 : (HOURS[s[jo-1]]||0); 
   }
-  return tot;
+  return tot; 
 }
 
-// 오늘 기준 날짜 비교 (과거=true)
 function isPast(date){
-  const today=new Date(); today.setHours(0,0,0,0);
-  const d=new Date(date); d.setHours(0,0,0,0);
-  return d < today;
+  const today=new Date(); today.setHours(0,0,0,0); 
+  const d=new Date(date); d.setHours(0,0,0,0); 
+  return d < today; 
 }
 
-// ── 현재 월 ──────────────────────────────────────────
-let curY, curM;
+let curY, curM; 
 
 function init(){
-  loadAll();
-  const n=new Date(); curY=n.getFullYear(); curM=n.getMonth();
-  fillYearSel(); render();
+  loadAll(); 
+  const n=new Date(); curY=n.getFullYear(); curM=n.getMonth(); 
+  fillYearSel(); render(); 
 }
 function fillYearSel(){
-  const s=document.getElementById('yearSel'); s.innerHTML='';
+  const s=document.getElementById('yearSel'); s.innerHTML=''; 
   for(let y=2024;y<=2030;y++){
-    const o=document.createElement('option');
-    o.value=y; o.textContent=y+'년'; if(y===curY)o.selected=true;
-    s.appendChild(o);
+    const o=document.createElement('option'); 
+    o.value=y; o.textContent=y+'년'; if(y===curY)o.selected=true; 
+    s.appendChild(o); 
   }
 }
 function render(){
-  document.getElementById('mTitle').textContent=`${curM+1}월 근무표`;
-  document.getElementById('yearSel').value=curY;
-  renderCal(); renderSummary();
-  if(swapMode.active) setTimeout(applyHighlight,40);
+  document.getElementById('mTitle').textContent=`${curM+1}월 근무표`; 
+  document.getElementById('yearSel').value=curY; 
+  renderCal(); renderSummary(); 
+  if(swapMode.active) setTimeout(applyHighlight,40); 
 }
 
-// ── 달력 렌더 ────────────────────────────────────────
-function mkTot(){ const t={}; [1,2,3].forEach(jo=>{t[jo]={0:0,1:0};}); return t; }
+function mkTot(){ const t={}; [1,2,3].forEach(jo=>{t[jo]={0:0,1:0};}); return t; } 
 
 function addHoursToTot(t,date){
-  const s=getShifts(date);
+  const s=getShifts(date); 
   [1,2,3].forEach((jo,i)=>[0,1].forEach(mi=>{
-    t[jo][mi] += vacData[vKey(date,jo,mi)] ? 0 : (HOURS[s[i]]||0);
+    t[jo][mi] += vacData[vKey(date,jo,mi)] ? 0 : (HOURS[s[i]]||0); 
   }));
 }
 
 function wkTotRow(t,dim=false){
-  let h=`</tr><tr class="wk-row"><td colspan="7" style="${dim?'opacity:.55;':''}">`;
+  let h=`</tr><tr class="wk-row"><td colspan="7" style="${dim?'opacity:.55;':''}">`; 
   [1,2,3].forEach(jo=>[0,1].forEach(mi=>{
-    const v=t[jo][mi], ov=v>52;
-    h+=`<span class="wkjo b${jo}" style="font-size:9px;padding:1px 3px;margin-right:2px;">${FULL_NAMES[jo][mi].charAt(0)}</span>`
-      +`<span class="${ov?'wk-ov':''}" style="font-size:10px;margin-right:5px;">${v}h${ov?'⚠':''}</span>`;
+    const v=t[jo][mi], ov=v>52; 
+    h+=`<span class="wkjo b${jo}" style="font-size:9px;padding:1px 3px;margin-right:2px;">${FULL_NAMES[jo][mi].charAt(0)}</span>` 
+      +`<span class="${ov?'wk-ov':''}" style="font-size:10px;margin-right:5px;">${v}h${ov?'⚠':''}</span>`; 
   }));
-  return h+`</td>`;
+  return h+`</td>`; 
 }
 
 function dimCell(date,d){
-  const s=getShifts(date);
-  let h=`<td class="dim-cell"><div class="date-num" style="color:#bbb;">${d}</div>`;
+  const s=getShifts(date); 
+  let h=`<td class="dim-cell"><div class="date-num" style="color:#bbb;">${d}</div>`; 
   ['주','야'].forEach(type=>{
-    const jl=[1,2,3].filter((_,i)=>s[i]===type);
-    if(jl.length){ h+=`<div class="shift-row">`; jl.forEach(jo=>{h+=`<span class="badge-sm b${jo}" style="opacity:.28;">${jo}조</span>`;}); h+=`</div>`; }
+    const jl=[1,2,3].filter((_,i)=>s[i]===type); 
+    if(jl.length){ h+=`<div class="shift-row">`; jl.forEach(jo=>{h+=`<span class="badge-sm b${jo}" style="opacity:.28;">${jo}조</span>`;}); h+=`</div>`; } 
   });
-  return h+`</td>`;
+  return h+`</td>`; 
 }
 
 function renderCal(){
-  const wrap=document.getElementById('calWrap');
-  const dim=new Date(curY,curM+1,0).getDate();
-  const fd=new Date(curY,curM,1).getDay();
-  const so=fd===0?6:fd-1;
+  const wrap=document.getElementById('calWrap'); 
+  const dim=new Date(curY,curM+1,0).getDate(); 
+  const fd=new Date(curY,curM,1).getDay(); 
+  const so=fd===0?6:fd-1; 
 
-  // 주간 합계 (이번달 일요일)
-  const wkTot={};
-  for(let d=1;d<=dim;d++){
-    const dt=new Date(curY,curM,d);
-    if(dt.getDay()!==0) continue;
-    const t=mkTot();
-    for(let bk=6;bk>=0;bk--) addHoursToTot(t,new Date(curY,curM,d-bk));
-    wkTot[d]=t;
+  const wkTot={}; 
+  for(let d=1; d<=dim; d++){
+    const dt=new Date(curY,curM,d); 
+    if(dt.getDay()!==0) continue; 
+    const t=mkTot(); 
+    for(let bk=6; bk>=0; bk--) addHoursToTot(t,new Date(curY,curM,d-bk)); 
+    wkTot[d]=t; 
   }
 
-  // 다음달 날짜
-  const lastDt=new Date(curY,curM,dim);
-  const lastDow=lastDt.getDay();
-  let nextDays=[],lastWkTot=null;
+  const lastDt=new Date(curY,curM,dim); 
+  const lastDow=lastDt.getDay(); 
+  let nextDays=[],lastWkTot=null; 
   if(lastDow!==0){
-    const t=mkTot();
-    for(let bk=lastDow-1;bk>=0;bk--) addHoursToTot(t,new Date(curY,curM,dim-bk));
-    for(let nd=1;nd<=7-lastDow;nd++){
-      const ndt=new Date(curY,curM+1,nd);
-      addHoursToTot(t,ndt);
-      nextDays.push({date:ndt,d:nd});
+    const t=mkTot(); 
+    for(let bk=lastDow-1; bk>=0; bk--) addHoursToTot(t,new Date(curY,curM,dim-bk)); 
+    for(let nd=1; nd<=7-lastDow; nd++){
+      const ndt=new Date(curY,curM+1,nd); 
+      addHoursToTot(t,ndt); 
+      nextDays.push({date:ndt,d:nd}); 
     }
-    lastWkTot=t;
+    lastWkTot=t; 
   }
 
-  let html=`<table><thead class="day-header"><tr>`;
-  ['월','화','수','목','금','토','일'].forEach(n=>html+=`<th>${n}</th>`);
-  html+=`</tr></thead><tbody><tr>`;
-  let col=0;
+  let html=`<table><thead class="day-header"><tr>`; 
+  ['월','화','수','목','금','토','일'].forEach(n=>html+=`<th>${n}</th>`); 
+  html+=`</tr></thead><tbody><tr>`; 
+  let col=0; 
 
-  // 전달
-  const prevDim=new Date(curY,curM,0).getDate();
-  for(let i=0;i<so;i++){
-    const pd=prevDim-so+1+i;
-    html+=dimCell(new Date(curY,curM-1,pd),pd); col++;
+  const prevDim=new Date(curY,curM,0).getDate(); 
+  for(let i=0; i<so; i++){
+    const pd=prevDim-so+1+i; 
+    html+=dimCell(new Date(curY,curM-1,pd),pd); col++; 
   }
 
-  // 이번달
-  for(let d=1;d<=dim;d++){
-    if(col===7){html+=`</tr><tr>`;col=0;}
-    const dt=new Date(curY,curM,d);
-    const dow=dt.getDay();
-    const isSun=dow===0,isSat=dow===6;
-    const hk=`${curY}-${String(curM+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const holi=HOLIDAYS[hk];
-    const shifts=getShifts(dt);
-    let nc=isSun?'sun':isSat?'sat':''; if(holi)nc='hol';
-    const past=isPast(dt);
+  for(let d=1; d<=dim; d++){
+    if(col===7){html+=`</tr><tr>`;col=0;} 
+    const dt=new Date(curY,curM,d); 
+    const dow=dt.getDay(); 
+    const isSun=dow===0,isSat=dow===6; 
+    const hk=`${curY}-${String(curM+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; 
+    const holi=HOLIDAYS[hk]; 
+    const shifts=getShifts(dt); 
+    let nc=isSun?'sun':isSat?'sat':''; if(holi)nc='hol'; 
+    const past=isPast(dt); 
 
-    html+=`<td data-cd="${curY}-${curM}-${d}"${past?' style="background:#fafafa;"':''}>`;
-    html+=`<div class="date-num ${nc}">${d}${past?'<span style="font-size:8px;color:#ccc;margin-left:2px;"></span>':''}${holi?`<span class="holi-label">${holi}</span>`:''}</div>`;
+    html+=`<td data-cd="${curY}-${curM}-${d}"${past?' style="background:#fafafa;"':''}>`; 
+    html+=`<div class="date-num ${nc}">${d}${past?'<span style="font-size:8px;color:#ccc;margin-left:2px;"></span>':''}${holi?`<span class="holi-label">${holi}</span>`:''}</div>`; 
 
     ['주','야'].forEach(type=>{
-      const jl=[1,2,3].filter((_,i)=>shifts[i]===type);
-      if(!jl.length) return;
-      html+=`<div class="shift-row">`;
+      const jl=[1,2,3].filter((_,i)=>shifts[i]===type); 
+      if(!jl.length) return; 
+      html+=`<div class="shift-row">`; 
       jl.forEach(jo=>{
-        const sk=sKey(dt,jo,type), sw=swapData[sk];
-        const v0=vacData[vKey(dt,jo,0)], v1=vacData[vKey(dt,jo,1)];
-        const blinkK=`${curY}-${curM}-${d}-${jo}-${type}`;
-        const isBlinking=swapMode.active&&swapMode.blinkSet&&swapMode.blinkSet.has(blinkK);
-        const blinkCls=isBlinking?' blink-avail':'';
-        const clickFn=isBlinking
-          ? `onBlinkBadgeClick(this,event)`
-          : `onBadgeClick(this)`;
-        html+=`<span class="badge-sm b${jo}${blinkCls}" data-date="${curY}-${curM}-${d}" data-jo="${jo}" data-type="${type}" onclick="${clickFn}">${jo}조</span>`;
-        if(v0) html+=`<span class="vac-label">${DISP_NAMES[jo][0]}휴</span>`;
-        if(v1) html+=`<span class="vac-label">${DISP_NAMES[jo][1]}휴</span>`;
+        const sk=sKey(dt,jo,type), sw=swapData[sk]; 
+        const v0=vacData[vKey(dt,jo,0)], v1=vacData[vKey(dt,jo,1)]; 
+        const blinkK=`${curY}-${curM}-${d}-${jo}-${type}`; 
+        const isBlinking=swapMode.active&&swapMode.blinkSet&&swapMode.blinkSet.has(blinkK); 
+        const blinkCls=isBlinking?' blink-avail':''; 
+        const clickFn=isBlinking 
+          ? `onBlinkBadgeClick(this,event)` 
+          : `onBadgeClick(this)`; 
+        html+=`<span class="badge-sm b${jo}${blinkCls}" data-date="${curY}-${curM}-${d}" data-jo="${jo}" data-type="${type}" onclick="${clickFn}">${jo}조</span>`; 
+        if(v0) html+=`<span class="vac-label">${DISP_NAMES[jo][0]}휴</span>`; 
+        if(v1) html+=`<span class="vac-label">${DISP_NAMES[jo][1]}휴</span>`; 
         if(sw){
-          const a=sw.hoursA<=52,b=sw.hoursB<=52;
-          const dispA=getDispName(sw.joA,sw.nameA);
-          const dispB=getDispName(sw.joB,sw.nameB);
-          html+=`<span class="swap-label">${dispA}→${dispB}<br>`
-            +`<span class="${a?'s-ok':'s-ov'}">${sw.hoursA}h${a?'✓':'⚠'}</span> `
-            +`<span class="${b?'s-ok':'s-ov'}">${sw.hoursB}h${b?'✓':'⚠'}</span></span>`;
+          const a=sw.hoursA<=52,b=sw.hoursB<=52; 
+          const dispA=getDispName(sw.joA,sw.nameA); 
+          const dispB=getDispName(sw.joB,sw.nameB); 
+          html+=`<span class="swap-label">${dispA}→${dispB}<br>` 
+            +`<span class="${a?'s-ok':'s-ov'}">${sw.hoursA}h${a?'✓':'⚠'}</span> ` 
+            +`<span class="${b?'s-ok':'s-ov'}">${sw.hoursB}h${b?'✓':'⚠'}</span></span>`; 
         }
       });
-      html+=`</div>`;
+      html+=`</div>`; 
     });
-    html+=`</td>`; col++;
+    html+=`</td>`; col++; 
 
-    if(isSun&&wkTot[d]){ html+=wkTotRow(wkTot[d]); html+=`<tr>`; col=0; }
+    if(isSun&&wkTot[d]){ html+=wkTotRow(wkTot[d]); html+=`<tr>`; col=0; } 
   }
 
-  // 다음달
   nextDays.forEach(({date,d})=>{
-    if(col===7){html+=`</tr><tr>`;col=0;}
-    html+=dimCell(date,d); col++;
-    if(date.getDay()===0&&lastWkTot){ html+=wkTotRow(lastWkTot,true); html+=`<tr>`; col=0; }
+    if(col===7){html+=`</tr><tr>`;col=0;} 
+    html+=dimCell(date,d); col++; 
+    if(date.getDay()===0&&lastWkTot){ html+=wkTotRow(lastWkTot,true); html+=`<tr>`; col=0; } 
   });
 
-  html+=`</tr></tbody></table>`;
-  wrap.innerHTML=html;
+  html+=`</tr></tbody></table>`; 
+  wrap.innerHTML=html; 
 }
 
-// ── 주간 요약 ────────────────────────────────────────
 function renderSummary(){
-  const wrap=document.getElementById('wkSummary');
-  const dim=new Date(curY,curM+1,0).getDate();
-  const fd=new Date(curY,curM,1).getDay(), off=fd===0?6:fd-1;
-  let ws=new Date(curY,curM,1-off);
-  const weeks=[];
+  const wrap=document.getElementById('wkSummary'); 
+  const dim=new Date(curY,curM+1,0).getDate(); 
+  const fd=new Date(curY,curM,1).getDay(), off=fd===0?6:fd-1; 
+  let ws=new Date(curY,curM,1-off); 
+  const weeks=[]; 
   while(ws<=new Date(curY,curM,dim)){
-    const we=new Date(ws); we.setDate(we.getDate()+6);
-    weeks.push({s:new Date(ws),e:new Date(we)});
-    ws.setDate(ws.getDate()+7);
+    const we=new Date(ws); we.setDate(we.getDate()+6); 
+    weeks.push({s:new Date(ws),e:new Date(we)}); 
+    ws.setDate(ws.getDate()+7); 
   }
-  const jh={1:{},2:{},3:{}};
+  const jh={1:{},2:{},3:{}}; 
   weeks.forEach((w,wi)=>{
-    [1,2,3].forEach(jo=>{jh[jo][wi]={0:0,1:0};});
-    let c=new Date(w.s);
+    [1,2,3].forEach(jo=>{jh[jo][wi]={0:0,1:0};}); 
+    let c=new Date(w.s); 
     while(c<=w.e){
-      const s=getShifts(c);
+      const s=getShifts(c); 
       [1,2,3].forEach((jo,i)=>[0,1].forEach(mi=>{
-        jh[jo][wi][mi]+=vacData[vKey(c,jo,mi)]?0:(HOURS[s[i]]||0);
+        jh[jo][wi][mi]+=vacData[vKey(c,jo,mi)]?0:(HOURS[s[i]]||0); 
       }));
-      c.setDate(c.getDate()+1);
+      c.setDate(c.getDate()+1); 
     }
   });
-  let html=`<table><thead class="wkh"><tr><th>조/이름</th>`;
+  let html=`<table><thead class="wkh"><tr><th>조/이름</th>`; 
   weeks.forEach((w,i)=>{
-    html+=`<th>${w.s.getMonth()+1}/${w.s.getDate()}~${w.e.getMonth()+1}/${w.e.getDate()}<br><small>주${i+1}</small></th>`;
+    html+=`<th>${w.s.getMonth()+1}/${w.s.getDate()}~${w.e.getMonth()+1}/${w.e.getDate()}<br><small>주${i+1}</small></th>`; 
   });
-  html+=`<th>합계</th></tr></thead><tbody>`;
+  html+=`<th>합계</th></tr></thead><tbody>`; 
   [1,2,3].forEach(jo=>[0,1].forEach(mi=>{
-    const name=FULL_NAMES[jo][mi];
-    const wt=weeks.map((_,wi)=>jh[jo][wi][mi]);
-    const tot=wt.reduce((a,b)=>a+b,0);
-    html+=`<tr class="wkr"><td class="wkname"><span class="wkjo b${jo}">${jo}조</span> ${name}</td>`
-      +wt.map(h=>`<td class="${h>52?'ov':'ok'}">${h}h${h>52?' ⚠️':''}</td>`).join('')
-      +`<td style="font-weight:700;">${tot}h</td></tr>`;
+    const name=FULL_NAMES[jo][mi]; 
+    const wt=weeks.map((_,wi)=>jh[jo][wi][mi]); 
+    const tot=wt.reduce((a,b)=>a+b,0); 
+    html+=`<tr class="wkr"><td class="wkname"><span class="wkjo b${jo}">${jo}조</span> ${name}</td>` 
+      +wt.map(h=>`<td class="${h>52?'ov':'ok'}">${h}h${h>52?' ⚠️':''}</td>`).join('') 
+      +`<td style="font-weight:700;">${tot}h</td></tr>`; 
   }));
-  html+=`</tbody></table>`;
-  wrap.innerHTML=html;
+  html+=`</tbody></table>`; 
+  wrap.innerHTML=html; 
 }
 
-// 약칭: 성만 표시, 3조 판수→판, 진한→한
 function getDispName(jo, fullName){
-  if(jo===3){
-    if(fullName==='김판수') return '판';
-    if(fullName==='김진한') return '한';
+  if(jo===3){ 
+    if(fullName==='김판수') return '판'; 
+    if(fullName==='김진한') return '한'; 
   }
-  return fullName.charAt(0);
+  return fullName.charAt(0); 
 }
 
-// 교대모드에서 점멸 배지 클릭 → 같은 조면 일반 메뉴, 다른 조면 교대 상대 팝업
 function onBlinkBadgeClick(el, ev){
-  ev.stopPropagation();
-  const [y,m,d]=el.dataset.date.split('-').map(Number);
-  const clickedJo=parseInt(el.dataset.jo);
-  // 같은 조 배지 클릭 → 교대 불가 안내
+  ev.stopPropagation(); 
+  const [y,m,d]=el.dataset.date.split('-').map(Number); 
+  const clickedJo=parseInt(el.dataset.jo); 
+  
   if(clickedJo===swapMode.selA.jo){
-    alert(`같은 조(${clickedJo}조)끼리는 교대 요청이 불가합니다.\n다른 조의 점멸 배지를 클릭하세요.`);
+    alert(`같은 조끼리는 일자 매칭이 불가능합니다.`);
     return;
   }
-  const dk=`${y}-${m}-${d}`;
-  openDatePopup(dk);
+  const dk=`${y}-${m}-${d}`; 
+  openDatePopup(dk); 
 }
 
-// ── 교대 모드 ────────────────────────────────────────
-let swapMode={active:false,selA:null,possible:{},blinkSet:null};
+// ── 교대 모드 탐색 ─────────────────────────────────────
+let swapMode={active:false,selA:null,possible:{},blinkSet:null}; 
 
 function cancelSwap(){
-  swapMode={active:false,selA:null,possible:{},blinkSet:null};
-  document.getElementById('swapBanner').classList.remove('active');
+  swapMode={active:false,selA:null,possible:{},blinkSet:null}; 
+  document.getElementById('swapBanner').classList.remove('active'); 
   document.querySelectorAll('td.swap-ok-cell,td.swap-dim').forEach(td=>{
-    td.classList.remove('swap-ok-cell','swap-dim'); td.onclick=null;
+    td.classList.remove('swap-ok-cell','swap-dim'); td.onclick=null; 
   });
-  document.querySelectorAll('.blink-avail').forEach(b=>b.classList.remove('blink-avail'));
+  document.querySelectorAll('.blink-avail').forEach(b=>b.classList.remove('blink-avail')); 
 }
 
-// 교대 가능 날짜 계산
-// 조건:
-//  1) 요청일 이후 날짜만
-//  2) 같은 조 제외
-//  3) 상대방이 비번인 날 (비번 조원이 대신 근무)
-//  4) 주간교대: 상대방 주간 누적 ≤44h / 야간교대: ≤40h
-//  5) 교대 후 상대방 ≤52h
-//  6) 요청자도 교대 후 ≥0h
+// [핵심 변경] "오늘 이후"의 날짜에서만 교대 가능일 탐색 및 점멸
 function calcSwapTargets(selA, reqDate){
   const possible={};
   const blinkSet=new Set();
 
-  const reqNext=new Date(reqDate); reqNext.setDate(reqNext.getDate()+1); reqNext.setHours(0,0,0,0);
-  const rangeEnd=new Date(reqDate); rangeEnd.setFullYear(rangeEnd.getFullYear()+1);
+  // 언제나 시스템의 "오늘 현재 날짜"를 기준으로 탐색 시작점 정의
+  const today = new Date();
+  today.setHours(0,0,0,0);
 
-  let cur=new Date(reqNext);
-  while(cur<=rangeEnd){
-    const s=getShifts(cur);
-    const sA=s[selA.jo-1];
-    if(sA==='주'||sA==='야'){
-      const hrs=HOURS[sA];
-      const whA=weekHours(selA.jo,selA.mi,cur);
-      const newA=whA-hrs;
-      if(newA>=0&&newA<=52){
-        const limit=sA==='주'?44:40;
-        const cands=[];
-        [1,2,3].forEach(jo=>{
-          if(jo===selA.jo) return;        // 같은 조 제외
-          if(s[jo-1]!=='비') return;      // 비번인 조만 교대 가능
-          [0,1].forEach(mi=>{
-            const whB=weekHours(jo,mi,cur);
-            const newB=whB+hrs;
-            if(whB<=limit && newB<=52){
-              cands.push({jo,mi,name:FULL_NAMES[jo][mi],dispName:DISP_NAMES[jo][mi],curH:whB,newH:newB,type:sA});
+  // 올해의 끝(12월 31일)까지만 검색 한계 설정
+  const endLoop = new Date(today.getFullYear(), 11, 31);
+  endLoop.setHours(23,59,59,999);
+
+  let cur = new Date(today); // 무조건 오늘 이후의 날부터 탐색 시작
+
+  while(cur <= endLoop){
+    const s = getShifts(cur);
+    const sA = s[selA.jo-1];
+    
+    if(sA === '주' || sA === '야'){
+      const hrs = HOURS[sA];
+      const whA = weekHours(selA.jo, selA.mi, cur);
+      const newA = whA - hrs;
+      
+      if(newA >= 0 && newA <= 52){
+        const limit = sA === '주' ? 44 : 40;
+        const cands = [];
+        
+        [1,2,3].forEach(jo => {
+          if(jo === selA.jo) return; // 동일 조 매칭 제외
+          if(s[jo-1] !== '비') return; // 상대방 비번 조건 확인
+          
+          [0,1].forEach(mi => {
+            const whB = weekHours(jo, mi, cur);
+            const newB = whB + hrs;
+            if(whB <= limit && newB <= 52){
+              cands.push({jo, mi, name:FULL_NAMES[jo][mi], dispName:DISP_NAMES[jo][mi], curH:whB, newH:newB, type:sA});
             }
           });
         });
-        if(cands.length>0){
-          const dk=`${cur.getFullYear()}-${cur.getMonth()}-${cur.getDate()}`;
-          possible[dk]={cands,shiftType:sA,newA};
+        
+        if(cands.length > 0){
+          const dk = `${cur.getFullYear()}-${cur.getMonth()}-${cur.getDate()}`;
+          possible[dk] = {cands, shiftType:sA, newA};
           blinkSet.add(`${cur.getFullYear()}-${cur.getMonth()}-${cur.getDate()}-${selA.jo}-${sA}`);
         }
       }
     }
-    cur.setDate(cur.getDate()+1);
+    cur.setDate(cur.getDate() + 1);
   }
-  return {possible,blinkSet};
+  return {possible, blinkSet};
 }
 
 function applyHighlight(){
-  if(!swapMode.active) return;
+  if(!swapMode.active) return; 
   document.querySelectorAll('#calWrap td[data-cd]').forEach(td=>{
-    const dk=td.dataset.cd; if(!dk) return;
+    const dk=td.dataset.cd; if(!dk) return; 
     if(swapMode.possible[dk]){
-      td.classList.add('swap-ok-cell'); td.classList.remove('swap-dim');
-      td.onclick=(e)=>{ if(e.target===td||e.target.classList.contains('date-num')) openDatePopup(dk); };
+      td.classList.add('swap-ok-cell'); td.classList.remove('swap-dim'); 
+      td.onclick=(e)=>{ if(e.target===td||e.target.classList.contains('date-num')) openDatePopup(dk); }; 
     } else {
-      td.classList.add('swap-dim'); td.classList.remove('swap-ok-cell'); td.onclick=null;
+      td.classList.add('swap-dim'); td.classList.remove('swap-ok-cell'); td.onclick=null; 
     }
   });
   document.querySelectorAll('.badge-sm[data-date]').forEach(b=>{
-    const bk=`${b.dataset.date}-${b.dataset.jo}-${b.dataset.type}`;
-    if(swapMode.blinkSet&&swapMode.blinkSet.has(bk)) b.classList.add('blink-avail');
-    else b.classList.remove('blink-avail');
+    const bk=`${b.dataset.date}-${b.dataset.jo}-${b.dataset.type}`; 
+    if(swapMode.blinkSet&&swapMode.blinkSet.has(bk)) b.classList.add('blink-avail'); 
+    else b.classList.remove('blink-avail'); 
   });
-  document.getElementById('swapBanner').classList.add('active');
+  document.getElementById('swapBanner').classList.add('active'); 
 }
 
-// ── 팝업 공통 ────────────────────────────────────────
-let pState={date:null,jo:null,type:null,mode:'menu',selA:null,selB:null};
+// ── 팝업 제어 ────────────────────────────────────────
+let pState={date:null,jo:null,type:null,mode:'menu',selA:null,selB:null}; 
 
-function showOverlay(){ document.getElementById('overlay').classList.add('on'); }
-function hideOverlay(){ document.getElementById('overlay').classList.remove('on'); }
+function showOverlay(){ document.getElementById('overlay').classList.add('on'); } 
+function hideOverlay(){ document.getElementById('overlay').classList.remove('on'); } 
 function setPOk(show,label,disabled){
-  const b=document.getElementById('pOk');
-  b.style.display=show?'':'none'; b.disabled=!!disabled;
-  if(label) b.textContent=label;
+  const b=document.getElementById('pOk'); 
+  b.style.display=show?'':'none'; b.disabled=!!disabled; 
+  if(label) b.textContent=label; 
 }
 function setResult(html){
-  const r=document.getElementById('pResult');
-  r.style.display=html?'block':'none'; if(html)r.innerHTML=html;
+  const r=document.getElementById('pResult'); 
+  r.style.display=html?'block':'none'; if(html)r.innerHTML=html; 
 }
 
-// 배지 클릭
 function onBadgeClick(el){
-  if(swapMode.active){ cancelSwap(); return; }
-  const [y,m,d]=el.dataset.date.split('-').map(Number);
-  pState.date=new Date(y,m,d); pState.jo=parseInt(el.dataset.jo);
-  pState.type=el.dataset.type; pState.selA=null; pState.selB=null;
-  pState.mode='menu';
-  showMenu();
+  if(swapMode.active){ cancelSwap(); return; } 
+  const [y,m,d]=el.dataset.date.split('-').map(Number); 
+  pState.date=new Date(y,m,d); pState.jo=parseInt(el.dataset.jo); 
+  pState.type=el.dataset.type; pState.selA=null; pState.selB=null; 
+  pState.mode='menu'; 
+  showMenu(); 
 }
 
 function showMenu(){
-  const dt=pState.date, jo=pState.jo;
-  const m=dt.getMonth()+1, d=dt.getDate();
-  document.getElementById('pTitle').textContent=`${m}월 ${d}일 ${jo}조 (${pState.type}간)`;
-  document.getElementById('pStep').textContent='무엇을 하시겠습니까?';
-  setResult(null); setPOk(false);
-  const v0=vacData[vKey(dt,jo,0)], v1=vacData[vKey(dt,jo,1)];
-  const hasVac=v0||v1;
+  const dt=pState.date, jo=pState.jo; 
+  const m=dt.getMonth()+1, d=dt.getDate(); 
+  document.getElementById('pTitle').textContent=`${m}월 ${d}일 ${jo}조 (${pState.type}간)`; 
+  document.getElementById('pStep').textContent='무엇을 하시겠습니까?'; 
+  setResult(null); setPOk(false); 
+  const v0=vacData[vKey(dt,jo,0)], v1=vacData[vKey(dt,jo,1)]; 
+  const hasVac=v0||v1; 
 
-  // 교대 요청: 같은 조끼리 불가 → 요청 가능한 다른 조가 있을 때만 버튼 표시
-  // (배지 클릭한 jo가 요청 대상 조 → 다른 조에게 요청)
-  // 항상 다른 조가 존재하므로 버튼은 항상 표시, 단 클릭 후 같은 조 선택 불가 처리는 calcSwapTargets에서 이미 됨
   document.getElementById('pMembers').innerHTML=`
     <button class="pmbtn" onclick="showSwapStep1()">🔄 교대 요청 (다른 조에게)</button>
     <button class="pmbtn vbtn" onclick="showVacStep()">🏖️ 휴가 입력 / 취소</button>
     ${hasVac?`<button class="pmbtn dbtn" onclick="showVacDelStep()">🗑️ 휴가 취소</button>`:''}
-  `;
-  showOverlay();
+  `; 
+  showOverlay(); 
 }
 
-// ── 교대 ─────────────────────────────────────────────
 function showSwapStep1(){
-  pState.mode='swap1';
-  const dt=pState.date, jo=pState.jo, type=pState.type;
-  const hrs=HOURS[type];
-  document.getElementById('pTitle').textContent=`${jo}조 교대 요청`;
-  document.getElementById('pStep').textContent=`① ${jo}조 중 쉬고 싶은 조원 선택 → 2·3조 교대 가능 날짜 점멸`;
-  setResult(null); setPOk(false);
-  document.getElementById('pMembers').innerHTML=FULL_NAMES[jo].map((name,mi)=>{
-    const wh=weekHours(jo,mi,dt), newWh=wh-hrs;
-    const ok=newWh>=0&&newWh<=52;
+  pState.mode='swap1'; 
+  const dt=pState.date, jo=pState.jo, type=pState.type; 
+  const hrs=HOURS[type]; 
+  document.getElementById('pTitle').textContent=`${jo}조 교대 요청`; 
+  document.getElementById('pStep').textContent=`① ${jo}조 중 쉬고 싶은 조원 선택 → 오늘 이후 교대 가능일 점멸`; 
+  setResult(null); setPOk(false); 
+  document.getElementById('pMembers').innerHTML=FULL_NAMES[jo].map((name,mi)=>{ 
+    const wh=weekHours(jo,mi,dt), newWh=wh-hrs; 
+    const ok=newWh>=0&&newWh<=52; 
     return `<button class="pmbtn" onclick="startSwapMode(${mi})">
       <span class="pdot pd${jo}"></span>
       <span>${name}</span>
@@ -574,27 +555,27 @@ function showSwapStep1(){
         <span style="color:${ok?'#2e7d32':'#e53935'};font-weight:700;"> → ${newWh}h</span>
       </span>
     </button>`;
-  }).join('');
+  }).join(''); 
 }
 
 function startSwapMode(mi){
-  pState.selA={jo:pState.jo,mi,name:FULL_NAMES[pState.jo][mi]};
-  const reqDate=pState.date; // 요청일
+  pState.selA={jo:pState.jo,mi,name:FULL_NAMES[pState.jo][mi]}; 
+  const reqDate=pState.date; 
   const {possible,blinkSet}=calcSwapTargets(pState.selA,reqDate);
   swapMode={active:true,selA:pState.selA,possible,blinkSet};
-  hideOverlay();
-  setTimeout(applyHighlight,40);
+  hideOverlay(); 
+  setTimeout(applyHighlight,40); 
 }
 
 function openDatePopup(dk){
-  const [y,m,d]=dk.split('-').map(Number);
-  const info=swapMode.possible[dk]; if(!info) return;
-  pState.date=new Date(y,m,d); pState.type=info.shiftType; pState.selB=null;
-  pState.mode='swap2';
-  document.getElementById('pTitle').textContent=`${m+1}월 ${d}일 ${info.shiftType}간 교대`;
-  document.getElementById('pStep').innerHTML=
-    `<span style="color:#2e7d32;">✓ ${pState.selA.name}(${pState.selA.jo}조) → 교대 후 ${info.newA}h</span><br>② 교대할 상대 선택`;
-  setResult(null); setPOk(true,'교대 적용',true);
+  const [y,m,d]=dk.split('-').map(Number); 
+  const info=swapMode.possible[dk]; if(!info) return; 
+  pState.date=new Date(y,m,d); pState.type=info.shiftType; pState.selB=null; 
+  pState.mode='swap2'; 
+  document.getElementById('pTitle').textContent=`${m+1}월 ${d}일 ${info.shiftType}간 교대`; 
+  document.getElementById('pStep').innerHTML= 
+    `<span style="color:#2e7d32;">✓ ${pState.selA.name}(${pState.selA.jo}조) → 교대 후 ${info.newA}h</span><br>② 교대할 상대 선택`; 
+  setResult(null); setPOk(true,'교대 적용',true); 
   document.getElementById('pMembers').innerHTML=info.cands.map(({jo,mi,name,curH,newH})=>`
     <button class="pmbtn" onclick="selectSwapB(${jo},${mi},${curH},${newH},event)">
       <span class="pdot pd${jo}"></span>
@@ -603,51 +584,51 @@ function openDatePopup(dk){
         <span style="color:#888;">${curH}h</span>
         <span style="color:#2e7d32;font-weight:700;"> → ${newH}h ✓</span>
       </span>
-    </button>`).join('');
-  showOverlay();
+    </button>`).join(''); 
+  showOverlay(); 
 }
 
 function selectSwapB(jo,mi,curH,newH,ev){
-  pState.selB={jo,mi,name:FULL_NAMES[jo][mi],curH,newH};
-  const sA=pState.selA;
-  const hrs=HOURS[pState.type];
-  const whA=weekHours(sA.jo,sA.mi,pState.date)-hrs;
+  pState.selB={jo,mi,name:FULL_NAMES[jo][mi],curH,newH}; 
+  const sA=pState.selA; 
+  const hrs=HOURS[pState.type]; 
+  const whA=weekHours(sA.jo,sA.mi,pState.date)-hrs; 
   setResult(`<div style="font-weight:700;color:#333;margin-bottom:4px;">📋 교대 결과</div>
     <div>${sA.name} <span style="color:#888">→</span> ${pState.selB.name}</div>
     <div>${sA.name}: <span class="chkok">${whA}h ✓</span></div>
-    <div>${pState.selB.name}: <span class="chkok">${newH}h ✓</span></div>`);
-  document.getElementById('pOk').disabled=false;
-  document.querySelectorAll('#pMembers .pmbtn').forEach(b=>b.classList.remove('sel'));
-  ev.currentTarget.classList.add('sel');
+    <div>${pState.selB.name}: <span class="chkok">${newH}h ✓</span></div>`); 
+  document.getElementById('pOk').disabled=false; 
+  document.querySelectorAll('#pMembers .pmbtn').forEach(b=>b.classList.remove('sel')); 
+  ev.currentTarget.classList.add('sel'); 
 }
 
 function doSwap(){
-  if(!pState.selB) return;
-  const sA=pState.selA, sB=pState.selB;
-  const hrs=HOURS[pState.type];
-  const dt=pState.date;
-  const whA=weekHours(sA.jo,sA.mi,dt)-hrs;
-  const sk=sKey(dt,sA.jo,pState.type);
-  swapData[sk]={nameA:sA.name,nameB:sB.name,hoursA:whA,hoursB:sB.newH,joA:sA.jo,joB:sB.jo};
-  cancelSwap(); hideOverlay(); render();
+  if(!pState.selB) return; 
+  const sA=pState.selA, sB=pState.selB; 
+  const hrs=HOURS[pState.type]; 
+  const dt=pState.date; 
+  const whA=weekHours(sA.jo,sA.mi,dt)-hrs; 
+  const sk=sKey(dt,sA.jo,pState.type); 
+  swapData[sk]={nameA:sA.name,nameB:sB.name,hoursA:whA,hoursB:sB.newH,joA:sA.jo,joB:sB.jo}; 
+  cancelSwap(); hideOverlay(); render(); 
 }
 
-// ── 휴가 ─────────────────────────────────────────────
+// ── 휴가 제어 ─────────────────────────────────────────
 function showVacStep(){
-  pState.mode='vac';
-  const dt=pState.date, jo=pState.jo;
-  const s=getShifts(dt), shiftType=s[jo-1], hrs=HOURS[shiftType]||0;
-  document.getElementById('pTitle').textContent=`${jo}조 휴가 입력/취소`;
-  document.getElementById('pStep').textContent=
-    hrs>0 ? `조원 클릭 시 휴가 입력/취소 (${shiftType}간 ${hrs}h 차감)` : '비번일은 휴가 입력 불가';
-  setResult(null); setPOk(false);
+  pState.mode='vac'; 
+  const dt=pState.date, jo=pState.jo; 
+  const s=getShifts(dt), shiftType=s[jo-1], hrs=HOURS[shiftType]||0; 
+  document.getElementById('pTitle').textContent=`${jo}조 휴가 입력/취소`; 
+  document.getElementById('pStep').textContent= 
+    hrs>0 ? `조원 클릭 시 휴가 입력/취소 (${shiftType}간 ${hrs}h 차감)` : '비번일은 휴가 입력 불가'; 
+  setResult(null); setPOk(false); 
   if(hrs===0){
-    document.getElementById('pMembers').innerHTML=`<div style="text-align:center;color:#aaa;padding:12px;">비번일에는 휴가를 입력할 수 없습니다.</div>`;
+    document.getElementById('pMembers').innerHTML=`<div style="text-align:center;color:#aaa;padding:12px;">비번일에는 휴가를 입력할 수 없습니다.</div>`; 
     return;
   }
-  document.getElementById('pMembers').innerHTML=FULL_NAMES[jo].map((name,mi)=>{
-    const vk=vKey(dt,jo,mi), hasV=!!vacData[vk];
-    const wh=weekHours(jo,mi,dt), newWh=hasV?wh+hrs:wh-hrs;
+  document.getElementById('pMembers').innerHTML=FULL_NAMES[jo].map((name,mi)=>{ 
+    const vk=vKey(dt,jo,mi), hasV=!!vacData[vk]; 
+    const wh=weekHours(jo,mi,dt), newWh=hasV?wh+hrs:wh-hrs; 
     return `<button class="pmbtn vbtn${hasV?' sel':''}" onclick="doVac(${mi})">
       <span class="pdot pd${jo}"></span>
       <span>${name}${hasV?' <small style="color:#6a1b9a">(휴가중)</small>':''}</span>
@@ -656,55 +637,51 @@ function showVacStep(){
         <span style="color:${hasV?'#e65100':'#6a1b9a'};font-weight:700;"> → ${newWh}h</span>
       </span>
     </button>`;
-  }).join('');
+  }).join(''); 
 }
 
 function doVac(mi){
-  const dt=pState.date, jo=pState.jo;
-  const s=getShifts(dt), shiftType=s[jo-1], hrs=HOURS[shiftType]||0;
-  if(hrs===0) return;
-  const vk=vKey(dt,jo,mi);
-  if(vacData[vk]) delete vacData[vk];
-  else vacData[vk]={type:shiftType,hours:hrs};
-  hideOverlay(); render();
+  const dt=pState.date, jo=pState.jo; 
+  const s=getShifts(dt), shiftType=s[jo-1], hrs=HOURS[shiftType]||0; 
+  if(hrs===0) return; 
+  const vk=vKey(dt,jo,mi); 
+  if(vacData[vk]) delete vacData[vk]; 
+  else vacData[vk]={type:shiftType,hours:hrs}; 
+  hideOverlay(); render(); 
 }
 
 function showVacDelStep(){
-  pState.mode='vac-del';
-  const dt=pState.date, jo=pState.jo;
-  document.getElementById('pTitle').textContent=`${jo}조 휴가 취소`;
-  document.getElementById('pStep').textContent='취소할 조원 클릭';
-  setResult(null); setPOk(false);
-  document.getElementById('pMembers').innerHTML=FULL_NAMES[jo].map((name,mi)=>{
-    const vk=vKey(dt,jo,mi), hasV=!!vacData[vk];
-    return `<button class="pmbtn dbtn" onclick="${hasV?`doVacDel(${mi})`:'void(0)'}"
-      style="${!hasV?'opacity:.35;cursor:default;':''}">
-      <span class="pdot pd${jo}"></span>
-      <span>${name}</span>
-      <span style="margin-left:auto;font-size:11px;color:${hasV?'#6a1b9a':'#bbb'};">${hasV?'🏖 있음':'없음'}</span>
-    </button>`;
-  }).join('');
+  pState.mode='vac-del'; 
+  const dt=pState.date, jo=pState.jo; 
+  document.getElementById('pTitle').textContent=`${jo}조 휴가 취소`; 
+  document.getElementById('pStep').textContent='취소할 조원 클릭'; 
+  setResult(null); setPOk(false); 
+  document.getElementById('pMembers').innerHTML=FULL_NAMES[jo].map((name,mi)=>{ 
+    const vk=vKey(dt,jo,mi), hasV=!!vacData[vk]; 
+    return `<button class="pmbtn dbtn" onclick="${hasV?`doVacDel(${mi})`:'void(0)'}"\n      style="${!hasV?'opacity:.35;cursor:default;':''}">\n      <span class="pdot pd${jo}"></span>\n      <span>${name}</span>\n      <span style="margin-left:auto;font-size:11px;color:${hasV?'#6a1b9a':'#bbb'};">${hasV?'🏖 있음':'없음'}</span>\n    </button>`; 
+  }).join(''); 
 }
 
 function doVacDel(mi){
-  const vk=vKey(pState.date,pState.jo,mi);
-  delete vacData[vk]; hideOverlay(); render();
+  const vk=vKey(pState.date,pState.jo,mi); 
+  delete vacData[vk]; hideOverlay(); render(); 
 }
 
-// ── 이벤트 ───────────────────────────────────────────
-document.getElementById('pClose').addEventListener('click',hideOverlay);
-document.getElementById('pCancel').addEventListener('click',hideOverlay);
-document.getElementById('pOk').addEventListener('click',doSwap);
+// ── 이벤트 Listener ───────────────────────────────────
+document.getElementById('pClose').addEventListener('click',hideOverlay); 
+document.getElementById('pCancel').addEventListener('click',hideOverlay); 
+document.getElementById('pOk').addEventListener('click',doSwap); 
 document.getElementById('overlay').addEventListener('click',e=>{
-  if(e.target===document.getElementById('overlay')) hideOverlay();
+  if(e.target===document.getElementById('overlay')) hideOverlay(); 
 });
-document.getElementById('prevYear').addEventListener('click',()=>{curY--;render();});
-document.getElementById('nextYear').addEventListener('click',()=>{curY++;render();});
-document.getElementById('prevMonth').addEventListener('click',()=>{curM--;if(curM<0){curM=11;curY--;}render();});
-document.getElementById('nextMonth').addEventListener('click',()=>{curM++;if(curM>11){curM=0;curY++;}render();});
-document.getElementById('yearSel').addEventListener('change',e=>{curY=parseInt(e.target.value);render();});
+document.getElementById('prevYear').addEventListener('click',()=>{curY--;render();}); 
+document.getElementById('nextYear').addEventListener('click',()=>{curY++;render();}); 
+document.getElementById('prevMonth').addEventListener('click',()=>{curM--;if(curM<0){curM=11;curY--;}render();}); 
+document.getElementById('nextMonth').addEventListener('click',()=>{curM++;if(curM>11){curM=0;curY++;}render();}); 
+document.getElementById('yearSel').addEventListener('change',e=>{curY=parseInt(e.target.value);render();}); 
 
-init();
+init(); 
 </script>
 </body>
 </html>
+
