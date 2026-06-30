@@ -424,20 +424,19 @@ function cancelSwap(){
   document.querySelectorAll('.blink-avail').forEach(b=>b.classList.remove('blink-avail')); 
 }
 
-// [핵심 변경] "오늘 이후"의 날짜에서만 교대 가능일 탐색 및 점멸
+// [핵심 버그 수정 및 최적화]
 function calcSwapTargets(selA, reqDate){
   const possible={};
   const blinkSet=new Set();
 
-  // 언제나 시스템의 "오늘 현재 날짜"를 기준으로 탐색 시작점 정의
   const today = new Date();
   today.setHours(0,0,0,0);
 
-  // 올해의 끝(12월 31일)까지만 검색 한계 설정
+  // 시스템 오늘 날짜 기준 해당 연도의 12월 31일까지만 루프 탐색 한계 설정
   const endLoop = new Date(today.getFullYear(), 11, 31);
   endLoop.setHours(23,59,59,999);
 
-  let cur = new Date(today); // 무조건 오늘 이후의 날부터 탐색 시작
+  let cur = new Date(today); // 무조건 요청일이 아닌 '오늘 이후' 날짜부터 탐색
 
   while(cur <= endLoop){
     const s = getShifts(cur);
@@ -453,7 +452,7 @@ function calcSwapTargets(selA, reqDate){
         const cands = [];
         
         [1,2,3].forEach(jo => {
-          if(jo === selA.jo) return; // 동일 조 매칭 제외
+          if(jo === selA.jo) return; // 동일 조 매칭 제외 (2조 클릭 시 2조 매칭 차단)
           if(s[jo-1] !== '비') return; // 상대방 비번 조건 확인
           
           [0,1].forEach(mi => {
@@ -468,7 +467,10 @@ function calcSwapTargets(selA, reqDate){
         if(cands.length > 0){
           const dk = `${cur.getFullYear()}-${cur.getMonth()}-${cur.getDate()}`;
           possible[dk] = {cands, shiftType:sA, newA};
-          blinkSet.add(`${cur.getFullYear()}-${cur.getMonth()}-${cur.getDate()}-${selA.jo}-${sA}`);
+          // 버그 수정: 본인 조(selA.jo)가 아니라 실제 들어갈 수 있는 상대방의 조(jo)들을 점멸 리스트에 등록
+          cands.forEach(c => {
+            blinkSet.add(`${cur.getFullYear()}-${cur.getMonth()}-${cur.getDate()}-${c.jo}-${sA}`);
+          });
         }
       }
     }
@@ -568,120 +570,5 @@ function startSwapMode(mi){
 }
 
 function openDatePopup(dk){
-  const [y,m,d]=dk.split('-').map(Number); 
-  const info=swapMode.possible[dk]; if(!info) return; 
-  pState.date=new Date(y,m,d); pState.type=info.shiftType; pState.selB=null; 
-  pState.mode='swap2'; 
-  document.getElementById('pTitle').textContent=`${m+1}월 ${d}일 ${info.shiftType}간 교대`; 
-  document.getElementById('pStep').innerHTML= 
-    `<span style="color:#2e7d32;">✓ ${pState.selA.name}(${pState.selA.jo}조) → 교대 후 ${info.newA}h</span><br>② 교대할 상대 선택`; 
-  setResult(null); setPOk(true,'교대 적용',true); 
-  document.getElementById('pMembers').innerHTML=info.cands.map(({jo,mi,name,curH,newH})=>`
-    <button class="pmbtn" onclick="selectSwapB(${jo},${mi},${curH},${newH},event)">
-      <span class="pdot pd${jo}"></span>
-      <span>${name} <small style="color:#2e7d32;">(비번)</small></span>
-      <span style="margin-left:auto;font-size:11px;">
-        <span style="color:#888;">${curH}h</span>
-        <span style="color:#2e7d32;font-weight:700;"> → ${newH}h ✓</span>
-      </span>
-    </button>`).join(''); 
-  showOverlay(); 
-}
-
-function selectSwapB(jo,mi,curH,newH,ev){
-  pState.selB={jo,mi,name:FULL_NAMES[jo][mi],curH,newH}; 
-  const sA=pState.selA; 
-  const hrs=HOURS[pState.type]; 
-  const whA=weekHours(sA.jo,sA.mi,pState.date)-hrs; 
-  setResult(`<div style="font-weight:700;color:#333;margin-bottom:4px;">📋 교대 결과</div>
-    <div>${sA.name} <span style="color:#888">→</span> ${pState.selB.name}</div>
-    <div>${sA.name}: <span class="chkok">${whA}h ✓</span></div>
-    <div>${pState.selB.name}: <span class="chkok">${newH}h ✓</span></div>`); 
-  document.getElementById('pOk').disabled=false; 
-  document.querySelectorAll('#pMembers .pmbtn').forEach(b=>b.classList.remove('sel')); 
-  ev.currentTarget.classList.add('sel'); 
-}
-
-function doSwap(){
-  if(!pState.selB) return; 
-  const sA=pState.selA, sB=pState.selB; 
-  const hrs=HOURS[pState.type]; 
-  const dt=pState.date; 
-  const whA=weekHours(sA.jo,sA.mi,dt)-hrs; 
-  const sk=sKey(dt,sA.jo,pState.type); 
-  swapData[sk]={nameA:sA.name,nameB:sB.name,hoursA:whA,hoursB:sB.newH,joA:sA.jo,joB:sB.jo}; 
-  cancelSwap(); hideOverlay(); render(); 
-}
-
-// ── 휴가 제어 ─────────────────────────────────────────
-function showVacStep(){
-  pState.mode='vac'; 
-  const dt=pState.date, jo=pState.jo; 
-  const s=getShifts(dt), shiftType=s[jo-1], hrs=HOURS[shiftType]||0; 
-  document.getElementById('pTitle').textContent=`${jo}조 휴가 입력/취소`; 
-  document.getElementById('pStep').textContent= 
-    hrs>0 ? `조원 클릭 시 휴가 입력/취소 (${shiftType}간 ${hrs}h 차감)` : '비번일은 휴가 입력 불가'; 
-  setResult(null); setPOk(false); 
-  if(hrs===0){
-    document.getElementById('pMembers').innerHTML=`<div style="text-align:center;color:#aaa;padding:12px;">비번일에는 휴가를 입력할 수 없습니다.</div>`; 
-    return;
-  }
-  document.getElementById('pMembers').innerHTML=FULL_NAMES[jo].map((name,mi)=>{ 
-    const vk=vKey(dt,jo,mi), hasV=!!vacData[vk]; 
-    const wh=weekHours(jo,mi,dt), newWh=hasV?wh+hrs:wh-hrs; 
-    return `<button class="pmbtn vbtn${hasV?' sel':''}" onclick="doVac(${mi})">
-      <span class="pdot pd${jo}"></span>
-      <span>${name}${hasV?' <small style="color:#6a1b9a">(휴가중)</small>':''}</span>
-      <span style="margin-left:auto;font-size:11px;">
-        <span style="color:#888;">${wh}h</span>
-        <span style="color:${hasV?'#e65100':'#6a1b9a'};font-weight:700;"> → ${newWh}h</span>
-      </span>
-    </button>`;
-  }).join(''); 
-}
-
-function doVac(mi){
-  const dt=pState.date, jo=pState.jo; 
-  const s=getShifts(dt), shiftType=s[jo-1], hrs=HOURS[shiftType]||0; 
-  if(hrs===0) return; 
-  const vk=vKey(dt,jo,mi); 
-  if(vacData[vk]) delete vacData[vk]; 
-  else vacData[vk]={type:shiftType,hours:hrs}; 
-  hideOverlay(); render(); 
-}
-
-function showVacDelStep(){
-  pState.mode='vac-del'; 
-  const dt=pState.date, jo=pState.jo; 
-  document.getElementById('pTitle').textContent=`${jo}조 휴가 취소`; 
-  document.getElementById('pStep').textContent='취소할 조원 클릭'; 
-  setResult(null); setPOk(false); 
-  document.getElementById('pMembers').innerHTML=FULL_NAMES[jo].map((name,mi)=>{ 
-    const vk=vKey(dt,jo,mi), hasV=!!vacData[vk]; 
-    return `<button class="pmbtn dbtn" onclick="${hasV?`doVacDel(${mi})`:'void(0)'}"\n      style="${!hasV?'opacity:.35;cursor:default;':''}">\n      <span class="pdot pd${jo}"></span>\n      <span>${name}</span>\n      <span style="margin-left:auto;font-size:11px;color:${hasV?'#6a1b9a':'#bbb'};">${hasV?'🏖 있음':'없음'}</span>\n    </button>`; 
-  }).join(''); 
-}
-
-function doVacDel(mi){
-  const vk=vKey(pState.date,pState.jo,mi); 
-  delete vacData[vk]; hideOverlay(); render(); 
-}
-
-// ── 이벤트 Listener ───────────────────────────────────
-document.getElementById('pClose').addEventListener('click',hideOverlay); 
-document.getElementById('pCancel').addEventListener('click',hideOverlay); 
-document.getElementById('pOk').addEventListener('click',doSwap); 
-document.getElementById('overlay').addEventListener('click',e=>{
-  if(e.target===document.getElementById('overlay')) hideOverlay(); 
-});
-document.getElementById('prevYear').addEventListener('click',()=>{curY--;render();}); 
-document.getElementById('nextYear').addEventListener('click',()=>{curY++;render();}); 
-document.getElementById('prevMonth').addEventListener('click',()=>{curM--;if(curM<0){curM=11;curY--;}render();}); 
-document.getElementById('nextMonth').addEventListener('click',()=>{curM++;if(curM>11){curM=0;curY++;}render();}); 
-document.getElementById('yearSel').addEventListener('change',e=>{curY=parseInt(e.target.value);render();}); 
-
-init(); 
-</script>
-</body>
-</html>
+  const [y,m,d]=dk.split('-').map(Number);
 
