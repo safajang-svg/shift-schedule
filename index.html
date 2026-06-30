@@ -38,7 +38,7 @@ td{border:1px solid #e8eaf0;vertical-align:top;padding:5px 4px 6px;width:calc(10
 .b1{background:#1565c0;}.b2{background:#2e7d32;}.b3{background:#e65100;}
 
 @keyframes blink{0%,100%{opacity:1;}50%{opacity:.25;}}
-.blink-avail{animation:blink .8s infinite;box-shadow:0 0 6px 2px rgba(67,160,71,.7)!important;}
+.blink-avail{animation:blink .8s infinite;box-shadow:0 0 6px 2px rgba(67,160,71,.7);}
 
 .vac-label{font-size:8px;font-weight:700;color:#6a1b9a;background:#f3e5f5;border:1px solid #ce93d8;border-radius:3px;padding:0 3px;display:inline-block;}
 .swap-label{font-size:8px;color:#444;display:block;margin-top:1px;line-height:1.4;}
@@ -149,7 +149,7 @@ td.swap-dim{opacity:.3;pointer-events:none;}
 
 <script>
 // ── 상수 ─────────────────────────────────────────────
-const BASE = new Date(2026,6,1); 
+const BASE = new Date(2026,6,1); // 2026-07-01 기준: 1조=야, 2조=비, 3조=주
 const CYCLE = ['야','비','주'];
 const BASE_IDX = [0,1,2];
 const FULL_NAMES = {1:['김영환','조상철'],2:['장영민','최서현'],3:['김판수','김진한']};
@@ -163,6 +163,7 @@ const HOLIDAYS = {
   '2026-10-03':'개천절','2026-10-09':'한글날','2026-12-25':'크리스마스',
 };
 
+// ── 저장소 ───────────────────────────────────────────
 let vacData={}, swapData={};
 
 function loadAll(){
@@ -179,6 +180,7 @@ function doSave(){
   }catch(e){ alert('저장 실패: '+e.message); }
 }
 
+// ── 근무 계산 ────────────────────────────────────────
 function getShifts(date){
   const diff=Math.round((new Date(date.getFullYear(),date.getMonth(),date.getDate())-BASE)/86400000);
   return [0,1,2].map(i=>CYCLE[((BASE_IDX[i]+diff)%3+3)%3]);
@@ -186,6 +188,7 @@ function getShifts(date){
 function vKey(date,jo,mi){return `${date.getFullYear()}_${date.getMonth()}_${date.getDate()}_${jo}_${mi}`;}
 function sKey(date,jo,type){return `${date.getFullYear()}_${date.getMonth()}_${date.getDate()}_${jo}_${type}`;}
 
+// 주(월~일) 총 근무시간 (휴가 차감)
 function weekHours(jo,mi,refDate){
   const dow=refDate.getDay(), off=dow===0?6:dow-1;
   const mon=new Date(refDate); mon.setDate(mon.getDate()-off);
@@ -198,12 +201,14 @@ function weekHours(jo,mi,refDate){
   return tot;
 }
 
+// 오늘 기준 날짜 비교 (과거=true) - 타임스탬프 기반 안전비교로 교체
 function isPast(date){
   const today=new Date(); today.setHours(0,0,0,0);
-  const d=new Date(date); d.setHours(0,0,0,0);
-  return d < today;
+  const d=new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  return d.getTime() < today.getTime();
 }
 
+// ── 현재 월 ──────────────────────────────────────────
 let curY, curM;
 
 function init(){
@@ -226,6 +231,7 @@ function render(){
   if(swapMode.active) setTimeout(applyHighlight,40);
 }
 
+// ── 달력 렌더 ────────────────────────────────────────
 function mkTot(){ const t={}; [1,2,3].forEach(jo=>{t[jo]={0:0,1:0};}); return t; }
 
 function addHoursToTot(t,date){
@@ -257,16 +263,17 @@ function dimCell(date,d){
 
 function renderCal(){
   const wrap=document.getElementById('calWrap');
+  if(!wrap) return;
   const dim=new Date(curY,curM+1,0).getDate();
   const fd=new Date(curY,curM,1).getDay();
   const so=fd===0?6:fd-1;
 
   const wkTot={};
-  for(let d=1; d<=dim; d++){
+  for(let d=1;d<=dim;d++){
     const dt=new Date(curY,curM,d);
     if(dt.getDay()!==0) continue;
     const t=mkTot();
-    for(let bk=6; bk>=0; bk--) addHoursToTot(t,new Date(curY,curM,d-bk));
+    for(let bk=6;bk>=0;bk--) addHoursToTot(t,new Date(curY,curM,d-bk));
     wkTot[d]=t;
   }
 
@@ -275,8 +282,8 @@ function renderCal(){
   let nextDays=[],lastWkTot=null;
   if(lastDow!==0){
     const t=mkTot();
-    for(let bk=lastDow-1; bk>=0; bk--) addHoursToTot(t,new Date(curY,curM,dim-bk));
-    for(let nd=1; nd<=7-lastDow; nd++){
+    for(let bk=lastDow-1;bk>=0;bk--) addHoursToTot(t,new Date(curY,curM,dim-bk));
+    for(let nd=1;nd<=7-lastDow;nd++){
       const ndt=new Date(curY,curM+1,nd);
       addHoursToTot(t,ndt);
       nextDays.push({date:ndt,d:nd});
@@ -290,12 +297,12 @@ function renderCal(){
   let col=0;
 
   const prevDim=new Date(curY,curM,0).getDate();
-  for(let i=0; i<so; i++){
+  for(let i=0;i<so;i++){
     const pd=prevDim-so+1+i;
     html+=dimCell(new Date(curY,curM-1,pd),pd); col++;
   }
 
-  for(let d=1; d<=dim; d++){
+  for(let d=1;d<=dim;d++){
     if(col===7){html+=`</tr><tr>`;col=0;}
     const dt=new Date(curY,curM,d);
     const dow=dt.getDay();
@@ -307,7 +314,7 @@ function renderCal(){
     const past=isPast(dt);
 
     html+=`<td data-cd="${curY}-${curM}-${d}"${past?' style="background:#fafafa;"':''}>`;
-    html+=`<div class="date-num ${nc}">${d}${past?'<span style="font-size:8px;color:#ccc;margin-left:2px;"></span>':''}${holi?`<span class="holi-label">${holi}</span>`:''}</div>`;
+    html+=`<div class="date-num ${nc}">${d}${holi?`<span class="holi-label">${holi}</span>`:''}</div>`;
 
     ['주','야'].forEach(type=>{
       const jl=[1,2,3].filter((_,i)=>shifts[i]===type);
@@ -317,5 +324,9 @@ function renderCal(){
         const sk=sKey(dt,jo,type), sw=swapData[sk];
         const v0=vacData[vKey(dt,jo,0)], v1=vacData[vKey(dt,jo,1)];
         const blinkK=`${curY}-${curM}-${d}-${jo}-${type}`;
-        const isBlinking=swapMode.active&&
+        const isBlinking=swapMode.active&&swapMode.blinkSet&&swapMode.blinkSet.has(blinkK);
+        const blinkCls=isBlinking?' blink-avail':'';
+        const clickFn=isBlinking ? `onBlinkBadgeClick(this,event)` : `onBadgeClick(this)`;
+        
+        html+=`<span class="badge-sm b${jo}${blinkCls}" data-date="${curY}-${curM}-${d}" data-jo="${jo}"
 
